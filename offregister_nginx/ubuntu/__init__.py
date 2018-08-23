@@ -15,6 +15,9 @@ from offregister_nginx import __author__, logger
 def install_nginx0(*args, **kwargs):
     apt_depends('apt-transport-https', 'ca-certificates', 'curl')
 
+    if run('dpkg -s nginx', warn_only=True).succeeded:
+        return 'nginx is already installed'
+
     dist = get_pretty_name()
     if run('curl -s http://nginx.org/packages/ubuntu/dists/ | grep -sq {dist}'.format(dist=dist),
            warn_only=True).failed:
@@ -29,6 +32,12 @@ def install_nginx0(*args, **kwargs):
                endl='http://nginx.org/packages/ubuntu/ {dist} nginx'.format(dist=dist)), use_sudo=True)
 
     apt_depends('nginx')
+
+    if run('grep -qF sites-enabled /etc/nginx/nginx.conf', warn_only=True).failed:
+        sudo('mkdir -p /etc/nginx/sites-enabled')
+        sudo("sed -i '$i\  \ \ include /etc/nginx/sites-enabled/*;' /etc/nginx/nginx.conf", shell_escape=True)
+
+    return 'nginx is now installed'
 
 
 def setup_nginx_init1(*args, **kwargs):
@@ -60,6 +69,8 @@ def setup_nginx_init1(*args, **kwargs):
 
 
 def setup_nginx_conf2(*args, **kwargs):
+    if exists('/run/systemd/system'):
+        raise NotImplementedError('SystemD not implemented yet')
     init_name = kwargs.get('nginx-init-name', 'nginx.conf')
     init_dir = kwargs.get('nginx-init-dir', '/etc/init')
     init_filename = '{init_dir}/{init_name}'.format(init_dir=init_dir, init_name=init_name)
