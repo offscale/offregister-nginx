@@ -1,13 +1,11 @@
 from cStringIO import StringIO
 from os import path
 
+from fabric.contrib.files import append, upload_template, exists
+from fabric.operations import sudo, run, put, get
+from offregister_fab_utils.apt import apt_depends, get_pretty_name
 from offutils import update_d, validate_conf
 from pkg_resources import resource_filename
-
-from fabric.operations import sudo, run, put, get
-from fabric.contrib.files import append, upload_template, exists
-
-from offregister_fab_utils.apt import apt_depends, get_pretty_name
 
 from offregister_nginx import __author__, logger
 
@@ -33,16 +31,16 @@ def install_nginx0(*args, **kwargs):
 
     apt_depends('nginx')
 
-    if run('grep -qF sites-enabled /etc/nginx/nginx.conf', warn_only=True).failed:
-        sudo('mkdir -p /etc/nginx/sites-enabled')
-        sudo("sed -i '$i\  \ \ include /etc/nginx/sites-enabled/*;' /etc/nginx/nginx.conf", shell_escape=True)
-
     return 'nginx is now installed'
 
 
 def setup_nginx_init1(*args, **kwargs):
     if exists('/run/systemd/system'):
-        raise NotImplementedError('SystemD not implemented yet')
+        if run('grep -qF sites-enabled /etc/nginx/nginx.conf', warn_only=True).failed:
+            sudo('mkdir -p /etc/nginx/sites-enabled')
+            sudo("sed -i '$i\  \ \ include /etc/nginx/sites-enabled/*;' /etc/nginx/nginx.conf", shell_escape=True)
+            return systemd_restart('nginx')
+        return 'nginx already configured for sites-enabled'
 
     default_conf = {
         'AUTHOR': __author__,
@@ -71,6 +69,7 @@ def setup_nginx_init1(*args, **kwargs):
 def setup_nginx_conf2(*args, **kwargs):
     if exists('/run/systemd/system'):
         raise NotImplementedError('SystemD not implemented yet')
+
     init_name = kwargs.get('nginx-init-name', 'nginx.conf')
     init_dir = kwargs.get('nginx-init-dir', '/etc/init')
     init_filename = '{init_dir}/{init_name}'.format(init_dir=init_dir, init_name=init_name)
