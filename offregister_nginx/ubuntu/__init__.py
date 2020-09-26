@@ -61,7 +61,8 @@ def setup_nginx_init1(*args, **kwargs):
                 "sed -i '$i\  \ \ include /etc/nginx/sites-enabled/*;' /etc/nginx/nginx.conf",
                 shell_escape=True,
             )
-            return systemd_restart("nginx")
+            sudo('systemctl stop nginx', warn_only=True, quiet=True)
+            return sudo('systemctl start nginx')
         return "nginx already configured for sites-enabled"
 
     default_conf = {
