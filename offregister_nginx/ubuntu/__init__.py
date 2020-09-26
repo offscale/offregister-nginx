@@ -19,7 +19,7 @@ from offregister_nginx import __author__, logger
 def install_nginx0(*args, **kwargs):
     apt_depends("apt-transport-https", "ca-certificates", "curl")
 
-    if run("dpkg -s nginx", warn_only=True).succeeded:
+    if run("dpkg -s nginx", warn_only=True, quiet=True).succeeded:
         return "nginx is already installed"
 
     dist = get_pretty_name()
@@ -61,8 +61,8 @@ def setup_nginx_init1(*args, **kwargs):
                 "sed -i '$i\  \ \ include /etc/nginx/sites-enabled/*;' /etc/nginx/nginx.conf",
                 shell_escape=True,
             )
-            sudo('systemctl stop nginx', warn_only=True, quiet=True)
-            return sudo('systemctl start nginx')
+            sudo("systemctl stop nginx", warn_only=True, quiet=True)
+            return sudo("systemctl start nginx")
         return "nginx already configured for sites-enabled"
 
     default_conf = {
