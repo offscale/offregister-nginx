@@ -5,10 +5,11 @@ if version[0] == "2":
 
 else:
     from io import StringIO
+
 from os import path
 
-from fabric.contrib.files import append, upload_template, exists
-from fabric.operations import sudo, run, put, get
+from fabric.contrib.files import append, exists, upload_template
+from fabric.operations import get, put, run, sudo
 from offregister_fab_utils.apt import apt_depends, get_pretty_name
 from offutils import update_d, validate_conf
 from pkg_resources import resource_filename
