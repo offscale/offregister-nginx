@@ -8,8 +8,7 @@ else:
 
 from os import path
 
-from fabric.contrib.files import append, exists, upload_template
-from fabric.operations import get, put, run, sudo
+from fabric.contrib.files import append, exists
 from offregister_fab_utils.apt import apt_depends, get_pretty_name
 from offutils import update_d, validate_conf
 from pkg_resources import resource_filename
@@ -18,26 +17,29 @@ from offregister_nginx import __author__, logger
 
 
 def install_nginx0(*args, **kwargs):
-    apt_depends("apt-transport-https", "ca-certificates", "curl")
+    apt_depends(c, "apt-transport-https", "ca-certificates", "curl")
 
-    if run("dpkg -s nginx", warn_only=True, quiet=True).succeeded:
+    if c.run("dpkg -s nginx", warn=True, hide=True).exited == 0:
         return "nginx is already installed"
 
     dist = get_pretty_name()
-    if run(
-        "curl -s http://nginx.org/packages/ubuntu/dists/ | grep -sq {dist}".format(
-            dist=dist
-        ),
-        warn_only=True,
-    ).failed:
+    if (
+        c.run(
+            "curl -s http://nginx.org/packages/ubuntu/dists/ | grep -sq {dist}".format(
+                dist=dist
+            ),
+            warn=True,
+        ).exited
+        != 0
+    ):
         raise NotImplementedError(
             "nginx official repostories don't support {dist}".format(dist=dist)
         )
 
-    run("mkdir -p Downloads")
+    c.run("mkdir -p Downloads")
     key = "nginx_signing.key"
-    run("curl https://nginx.org/keys/{key} -o Downloads/{key}".format(key=key))
-    sudo("apt-key add Downloads/{key}".format(key=key))
+    c.run("curl https://nginx.org/keys/{key} -o Downloads/{key}".format(key=key))
+    c.sudo("apt-key add Downloads/{key}".format(key=key))
     append(
         "/etc/apt/sources.list.d/nginx.list",
         (
@@ -49,21 +51,21 @@ def install_nginx0(*args, **kwargs):
         use_sudo=True,
     )
 
-    apt_depends("nginx")
+    apt_depends(c, "nginx")
 
     return "nginx is now installed"
 
 
 def setup_nginx_init1(*args, **kwargs):
-    if exists("/run/systemd/system"):
-        if run("grep -qF sites-enabled /etc/nginx/nginx.conf", warn_only=True).failed:
-            sudo("mkdir -p /etc/nginx/sites-enabled")
-            sudo(
+    if exists(c, runner=c.run, path="/run/systemd/system"):
+        if c.run("grep -qF sites-enabled /etc/nginx/nginx.conf", warn=True).exited != 0:
+            c.sudo("mkdir -p /etc/nginx/sites-enabled")
+            c.sudo(
                 "sed -i '$i\  \ \ include /etc/nginx/sites-enabled/*;' /etc/nginx/nginx.conf",
                 shell_escape=True,
             )
-            sudo("systemctl stop nginx", warn_only=True, quiet=True)
-            return sudo("systemctl start nginx")
+            c.sudo("systemctl stop nginx", warn=True, hide=True)
+            return c.sudo("systemctl start nginx")
         return "nginx already configured for sites-enabled"
 
     default_conf = {
@@ -81,7 +83,8 @@ def setup_nginx_init1(*args, **kwargs):
     )
     service = init_name.partition(".")[0]
 
-    upload_template(
+    upload_template_fmt(
+        c,
         init_local_filename,
         "{init_dir}/{init_name}".format(init_dir=init_dir, init_name=init_name),
         context=update_d(default_conf, kwargs.get("nginx-init-context")),
@@ -89,15 +92,15 @@ def setup_nginx_init1(*args, **kwargs):
     )
 
     status_cmd = "status {service}".format(service=service)
-    if "start/running" in run(status_cmd):
-        sudo("reload {service}".format(service=service))
+    if "start/running" in c.run(status_cmd):
+        c.sudo("reload {service}".format(service=service))
     else:
-        sudo("start {service}".format(service=service))
-    return run(status_cmd)
+        c.sudo("start {service}".format(service=service))
+    return c.run(status_cmd)
 
 
 def setup_nginx_conf2(*args, **kwargs):
-    if exists("/run/systemd/system"):
+    if exists(c, runner=c.run, path="/run/systemd/system"):
         raise NotImplementedError("SystemD not implemented yet")
 
     init_name = kwargs.get("nginx-init-name", "nginx.conf")
@@ -141,7 +144,7 @@ def setup_nginx_conf2(*args, **kwargs):
         )
 
     if conf["SERVER_LOCATION"].startswith("unix"):
-        if not exists(conf["SERVER_LOCATION"]):
+        if not exists(c, runner=c.run, path=conf["SERVER_LOCATION"]):
             raise EnvironmentError(
                 "{server_location} doesn't exist".format(
                     server_location=conf["SERVER_LOCATION"]
@@ -149,9 +152,9 @@ def setup_nginx_conf2(*args, **kwargs):
             )
     # http/https is okay, those can be started asynchronously
 
-    if exists(init_filename):
+    if exists(c, runner=c.run, path=init_filename):
         sio = StringIO()
-        get(init_filename, sio)
+        c.get(init_filename, sio)
         offset = 0
         for l in sio:
             if "include /etc/nginx/sites-enabled/*;" in l:
@@ -159,7 +162,7 @@ def setup_nginx_conf2(*args, **kwargs):
                     sio.seek(offset)
                     sio.write(l.replace("#", " "))
                     sio.seek(0)
-                    put(sio, init_filename, use_sudo=True)
+                    c.put(sio, init_filename, use_sudo=True)
                 break
             offset = sio.tell()
     else:
@@ -170,12 +173,12 @@ def setup_nginx_conf2(*args, **kwargs):
         )
         raise NotImplementedError("init conf in a weird place; erring")
 
-    upload_template(
-        conf_local_filepath, conf_remote_filename, context=conf, use_sudo=True
+    upload_template_fmt(
+        c, conf_local_filepath, conf_remote_filename, context=conf, use_sudo=True
     )
 
-    if "start/running" in run(status_cmd):
-        sudo("reload {service}".format(service=service))
+    if "start/running" in c.run(status_cmd):
+        c.sudo("reload {service}".format(service=service))
     else:
-        sudo("start {service}".format(service=service))
-    return run(status_cmd)
+        c.sudo("start {service}".format(service=service))
+    return c.run(status_cmd)
