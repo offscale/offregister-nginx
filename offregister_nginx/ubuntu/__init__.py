@@ -16,7 +16,7 @@ from pkg_resources import resource_filename
 from offregister_nginx import __author__, logger
 
 
-def install_nginx0(*args, **kwargs):
+def install_nginx0(c, *args, **kwargs):
     apt_depends(c, "apt-transport-https", "ca-certificates", "curl")
 
     if c.run("dpkg -s nginx", warn=True, hide=True).exited == 0:
@@ -56,7 +56,7 @@ def install_nginx0(*args, **kwargs):
     return "nginx is now installed"
 
 
-def setup_nginx_init1(*args, **kwargs):
+def setup_nginx_init1(c, *args, **kwargs):
     if exists(c, runner=c.run, path="/run/systemd/system"):
         if c.run("grep -qF sites-enabled /etc/nginx/nginx.conf", warn=True).exited != 0:
             c.sudo("mkdir -p /etc/nginx/sites-enabled")
@@ -99,7 +99,7 @@ def setup_nginx_init1(*args, **kwargs):
     return c.run(status_cmd)
 
 
-def setup_nginx_conf2(*args, **kwargs):
+def setup_nginx_conf2(c, *args, **kwargs):
     if exists(c, runner=c.run, path="/run/systemd/system"):
         raise NotImplementedError("SystemD not implemented yet")
 
